@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live AviationWeather METAR Density Altitude</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --input-bg: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-blue: #38bdf8;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --accent-safe: #10b981;
+            --border: #475569;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .calculator-card { background-color: var(--card-bg); border: 1px solid var(--border); border-radius: 16px; width: 100%; max-width: 540px; padding: 28px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+        .header { margin-bottom: 20px; text-align: center; }
+        .header h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 6px; }
+        .header p { font-size: 0.875rem; color: var(--text-muted); }
+
+        .search-box { display: flex; gap: 10px; margin-bottom: 12px; }
+        .search-box input { flex: 1; background-color: var(--input-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; color: var(--text-main); font-size: 1rem; font-weight: 600; text-transform: uppercase; outline: none; letter-spacing: 1px; }
+        .search-box button { background-color: var(--accent-blue); color: #0f172a; font-weight: 700; border: none; border-radius: 8px; padding: 0 20px; cursor: pointer; transition: opacity 0.2s; }
+        .search-box button:hover { opacity: 0.9; }
+
+        .presets { display: flex; gap: 8px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+        .presets span { font-size: 0.75rem; color: var(--text-muted); }
+        .preset-btn { background-color: var(--input-bg); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
+        .preset-btn:hover { border-color: var(--accent-blue); }
+
+        .metar-card { background-color: rgba(15, 23, 42, 0.8); border: 1px dashed var(--border); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 0.8125rem; color: #38bdf8; margin-bottom: 20px; word-break: break-all; min-height: 48px; display: flex; flex-direction: column; justify-content: center; }
+        .metar-time { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px; font-family: sans-serif; }
+        
+        .status-msg { font-size: 0.8125rem; color: var(--accent-warning); margin-bottom: 12px; text-align: center; min-height: 18px; }
+
+        .results-container { background-color: rgba(15, 23, 42, 0.6); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .primary-result { text-align: center; padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+        .primary-result .result-title { font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 4px; }
+        .primary-result .result-value { font-size: 2.25rem; font-weight: 800; color: var(--accent-blue); }
+
+        .secondary-results { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stat-box { background-color: var(--card-bg); padding: 10px; border-radius: 8px; text-align: center; border: 1px solid var(--border); }
+        .stat-box .stat-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; }
+        .stat-box .stat-value { font-size: 1rem; font-weight: 600; }
+
+        .performance-impact { margin-top: 16px; padding: 10px; border-radius: 8px; font-size: 0.8125rem; text-align: center; font-weight: 500; }
+        .impact-low { background-color: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .impact-moderate { background-color: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .impact-high { background-color: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    </style>
+</head>
+<body>
+
+<div class="calculator-card">
+    <div class="header">
+        <h1>Live AviationWeather METAR</h1>
+        <p>Real-Time Density Altitude Fetcher</p>
+    </div>
+
+    <div class="search-box">
+        <input type="text" id="icao-input" placeholder="Enter ICAO (e.g. KVRB)" maxlength="4" value="KVRB">
+        <button id="fetch-btn" onclick="fetchLiveMetar()">Fetch Live METAR</button>
+    </div>
+
+    <div class="presets">
+        <span>Quick Fetch:</span>
+        <button class="preset-btn" onclick="quickLoad('KVRB')">KVRB (Vero Beach)</button>
+        <button class="preset-btn" onclick="quickLoad('KMCO')">KMCO (Orlando)</button>
+        <button class="preset-btn" onclick="quickLoad('KDEN')">KDEN (Denver)</button>
+        <button class="preset-btn" onclick="quickLoad('KPHX')">KPHX (Phoenix)</button>
+    </div>
+
+    <div class="status-msg" id="status-msg"></div>
+
+    <div class="metar-card">
+        <div class="metar-time" id="metar-time">SOURCE: NOAA AVIATIONWEATHER.GOV</div>
+        <div id="metar-raw">Click fetch to retrieve current weather...</div>
+    </div>
+
+    <div class="results-container">
+        <div class="primary-result">
+            <div class="result-title">Density Altitude</div>
+            <div class="result-value" id="da-display">-- ft</div>
+        </div>
+
+        <div class="secondary-results">
+            <div class="stat-box"><div class="stat-label">Field Elevation</div><div class="stat-value" id="elev-display">-- ft</div></div>
+            <div class="stat-box"><div class="stat-label">Pressure Altitude</div><div class="stat-value" id="pa-display">-- ft</div></div>
+            <div class="stat-box"><div class="stat-label">Observed (Temp / Altim)</div><div class="stat-value" id="obs-display">--°C / --</div></div>
+            <div class="stat-box"><div class="stat-label">ISA Temp / Dev</div><div class="stat-value" id="isa-display">--°C / --</div></div>
+        </div>
+
+        <div id="performance-banner" class="performance-impact impact-low">
+            <span id="impact-text">Awaiting METAR response...</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Database for field elevations
+    const airportElevations = {
+        'KVRB': 24, 'KMCO': 96, 'KDEN': 5431, 'KPHX': 1135, 'KLAX': 128,
+        'KJFK': 13, 'KSFO': 13, 'KORD': 668, 'KDFW': 607, 'KMIA': 8
+    };
+
+    function quickLoad(icao) {
+        document.getElementById('icao-input').value = icao;
+        fetchLiveMetar();
+    }
+
+    async function fetchLiveMetar() {
+        let icao = document.getElementById('icao-input').value.trim().toUpperCase();
+        if (icao.length === 3) icao = 'K' + icao;
+
+        const statusMsg = document.getElementById('status-msg');
+        const metarRaw = document.getElementById('metar-raw');
+        const metarTime = document.getElementById('metar-time');
+        const fetchBtn = document.getElementById('fetch-btn');
+        
+        statusMsg.textContent = "";
+        metarRaw.textContent = "Connecting to AviationWeather.gov API...";
+        fetchBtn.disabled = true;
+
+        // Endpoints to query directly and via CORS fallbacks
+        const endpoints = [
+            `https://aviationweather.gov/api/data/metar?ids=${icao}&format=json`,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json`)}`,
+            `https://api.corsproxy.io/?url=${encodeURIComponent(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=json`)}`
+        ];
+
+        let metarReport = null;
+
+        for (const url of endpoints) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) continue;
+                const data = await response.json();
+                if (data && data.length > 0) {
+                    metarReport = data[0];
+                    break; // Successfully received data
+                }
+            } catch (e) {
+                console.warn(`Endpoint failed: ${url}`);
+            }
+        }
+
+        fetchBtn.disabled = false;
+
+        if (metarReport) {
+            const rawText = metarReport.rawOb || "";
+            metarRaw.textContent = rawText;
+            metarTime.textContent = `FETCHED LIVE: ${metarReport.receiptTime || new Date().toISOString()}`;
+
+            // Extract variables from API response or parse raw METAR string as backup
+            let temp = metarReport.temp;
+            let altimInHg = metarReport.altim ? (metarReport.altim * 0.02953) : null;
+            let elev = metarReport.elev ?? airportElevations[icao] ?? 0;
+
+            // Manual string parsing fallback if JSON values are missing
+            if (temp === undefined || temp === null) temp = parseTempFromRaw(rawText);
+            if (!altimInHg) altimInHg = parseAltimFromRaw(rawText);
+
+            calculate(elev, altimInHg || 29.92, temp || 15);
+        } else {
+            metarRaw.textContent = `Unable to reach AviationWeather.gov for ${icao}. Check connection.`;
+            statusMsg.textContent = "API request blocked or station offline.";
+        }
+    }
+
+    // Backup String Parsers for raw METAR syntax
+    function parseTempFromRaw(raw) {
+        const match = raw.match(/\b(M?\d{2})\/(M?\d{2})?\b/);
+        if (match) {
+            let tempStr = match[1];
+            return tempStr.startsWith('M') ? -parseInt(tempStr.substring(1)) : parseInt(tempStr);
+        }
+        return 15;
+    }
+
+    function parseAltimFromRaw(raw) {
+        const match = raw.match(/\bA(\d{4})\b/);
+        if (match) {
+            return parseFloat(match[1]) / 100;
+        }
+        return 29.92;
+    }
+
+    function calculate(elevation, altimeter, oat) {
+        const pa = elevation + ((29.92 - altimeter) * 1000);
+        const isaTemp = 15 - ((pa / 1000) * 2);
+        const isaDev = oat - isaTemp;
+        const da = pa + (120 * isaDev);
+        const diff = da - elevation;
+
+        document.getElementById('elev-display').textContent = `${elevation.toLocaleString()} ft`;
+        document.getElementById('pa-display').textContent = `${Math.round(pa).toLocaleString()} ft`;
+        document.getElementById('obs-display').textContent = `${oat}°C / ${altimeter.toFixed(2)} inHg`;
+        document.getElementById('isa-display').textContent = `${isaTemp.toFixed(1)}°C (${isaDev >= 0 ? '+' : ''}${isaDev.toFixed(1)}°C)`;
+        document.getElementById('da-display').textContent = `${Math.round(da).toLocaleString()} ft`;
+
+        const banner = document.getElementById('performance-banner');
+        const impactText = document.getElementById('impact-text');
+        banner.className = "performance-impact ";
+
+        if (diff > 3000) {
+            banner.classList.add("impact-high");
+            impactText.textContent = "High DA: Severely degraded takeoff roll & climb performance!";
+        } else if (diff > 1000) {
+            banner.classList.add("impact-moderate");
+            impactText.textContent = "Moderate DA: Reduced engine thrust and wing lift.";
+        } else {
+            banner.classList.add("impact-low");
+            impactText.textContent = "Standard DA: Near-normal aircraft performance expected.";
+        }
+    }
+
+    window.onload = fetchLiveMetar;
+</script>
+
+</body>
+</html>
